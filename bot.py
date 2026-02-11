@@ -1,86 +1,86 @@
+import os
+import secrets
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application, CommandHandler,
-    CallbackQueryHandler, ContextTypes
-)
-import os, secrets, sys
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-SITE_URL = os.getenv("SITE_URL") or "http://127.0.0.1:5000"
-CHANNEL_USERNAME = "@hack22_2"
-
-if not BOT_TOKEN:
-    print("❌ BOT_TOKEN ست نشده")
-    sys.exit(1)
+SITE_URL = os.getenv("SITE_URL")   # مثال: http://127.0.0.1:5000
+CHANNEL_USERNAME = "@Mr_Aminy_Channel"
 
 TEXT = {
     "fa": {
-        "welcome": "👋 خوش آمدید\n\nزبان را انتخاب کنید:",
-        "join": "🔒 برای ادامه عضو کانال شوید:",
+        "welcome": "👋 خوش آمدید\n\nلطفاً زبان خود را انتخاب کنید:",
+        "join": "🔒 برای ادامه باید عضو کانال باشید:",
         "check": "✅ عضو شدم",
         "join_btn": "📢 عضویت در کانال",
         "not_member": "❌ هنوز عضو کانال نیستید.",
-        "verified": "✅ عضویت تایید شد!\n\nبرای ادامه روی دکمه زیر بزنید 👇",
-        "open": "🌐 باز کردن سایت"
+        "verified": "✅ عضویت تایید شد!\n\n🔗 لینک اختصاصی شما:",
+        "open": "🌐 رفتن به وب‌سایت"
     },
     "en": {
-        "welcome": "👋 Welcome\n\nSelect language:",
-        "join": "🔒 To continue, join the channel:",
+        "welcome": "👋 Welcome\n\nPlease select your language:",
+        "join": "🔒 To continue, join our channel:",
         "check": "✅ I Joined",
         "join_btn": "📢 Join Channel",
-        "not_member": "❌ You are not a member yet.",
-        "verified": "✅ Membership verified!\n\nClick below 👇",
+        "not_member": "❌ You are not a channel member yet.",
+        "verified": "✅ Membership verified!\n\n🔗 Your private link:",
         "open": "🌐 Open Website"
     }
 }
 
-async def is_member(bot, user_id):
+async def is_member(bot, user_id: int) -> bool:
     try:
-        m = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
-        return m.status in ["member", "administrator", "creator"]
-    except:
+        member = await bot.get_chat_member(CHANNEL_USERNAME, user_id)
+        return member.status in ("member", "administrator", "creator")
+    except Exception:
         return False
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🇦🇫 دری", callback_data="lang_fa"),
-         InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")]
-    ])
-    await update.message.reply_text(TEXT["fa"]["welcome"], reply_markup=kb)
+    keyboard = InlineKeyboardMarkup(
+        [[
+            InlineKeyboardButton("🇦🇫 دری", callback_data="lang_fa"),
+            InlineKeyboardButton("🇬🇧 English", callback_data="lang_en")
+        ]]
+    )
+    await update.message.reply_text(TEXT["fa"]["welcome"], reply_markup=keyboard)
 
 async def set_lang(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
-    lang = q.data.split("_")[1]
+    query = update.callback_query
+    await query.answer()
+
+    lang = query.data.split("_")[1]
     context.user_data["lang"] = lang
     t = TEXT[lang]
 
-    kb = InlineKeyboardMarkup([
+    keyboard = InlineKeyboardMarkup([
         [InlineKeyboardButton(t["join_btn"], url=f"https://t.me/{CHANNEL_USERNAME.replace('@','')}")],
         [InlineKeyboardButton(t["check"], callback_data="check_join")]
     ])
-    await q.edit_message_text(f"{t['join']}\n{CHANNEL_USERNAME}", reply_markup=kb)
+
+    await query.edit_message_text(f"{t['join']}\n{CHANNEL_USERNAME}", reply_markup=keyboard)
 
 async def check_join(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
+    query = update.callback_query
+    await query.answer()
+
     lang = context.user_data.get("lang", "fa")
     t = TEXT[lang]
 
-    if not await is_member(context.bot, q.from_user.id):
-        await q.answer(t["not_member"], show_alert=True)
+    if not await is_member(context.bot, query.from_user.id):
+        await query.edit_message_text(t["not_member"])
         return
 
     token = secrets.token_urlsafe(12)
     link = f"{SITE_URL}/?token={token}"
 
-    kb = InlineKeyboardMarkup([[InlineKeyboardButton(t["open"], url=link)]])
-    await q.edit_message_text(t["verified"], reply_markup=kb)
+    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(t["open"], url=link)]])
+    await query.edit_message_text(f"{t['verified']}\n\n{link}", reply_markup=keyboard)
+
+application = Application.builder().token(BOT_TOKEN).build()
+application.add_handler(CommandHandler("start", start))
+application.add_handler(CallbackQueryHandler(set_lang, pattern="^lang_"))
+application.add_handler(CallbackQueryHandler(check_join, pattern="^check_join$"))
 
 def start_bot():
-    app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CallbackQueryHandler(set_lang, pattern="^lang_"))
-    app.add_handler(CallbackQueryHandler(check_join, pattern="^check_join$"))
     print("🤖 Bot started")
-    app.run_polling()
+    application.run_polling()
